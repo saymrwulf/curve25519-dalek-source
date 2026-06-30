@@ -28,7 +28,6 @@
 use cfg_if::cfg_if;
 
 use subtle::Choice;
-use subtle::ConditionallyNegatable;
 use subtle::ConditionallySelectable;
 use subtle::ConstantTimeEq;
 
@@ -357,8 +356,14 @@ impl FieldElement {
         r.conditional_assign(&r_prime, flipped_sign_sqrt | flipped_sign_sqrt_i);
 
         // Choose the nonnegative square root.
+        //
+        // NOTE: written as negate-then-conditional-assign rather than
+        // `r.conditional_negate(r_is_negative)`: semantically identical and
+        // still constant-time, but it avoids subtle's `ConditionallyNegatable`
+        // blanket impl which breaks the Aeneas verification toolchain.
         let r_is_negative = r.is_negative();
-        r.conditional_negate(r_is_negative);
+        let r_neg = -&r;
+        r.conditional_assign(&r_neg, r_is_negative);
 
         let was_nonzero_square = correct_sign_sqrt | flipped_sign_sqrt;
 
@@ -518,6 +523,7 @@ where
 #[cfg(test)]
 mod test {
     use crate::field::*;
+    use subtle::ConditionallyNegatable;
 
     /// Random element a of GF(2^255-19), from Sage
     /// a = 1070314506888354081329385823235218444233221\
